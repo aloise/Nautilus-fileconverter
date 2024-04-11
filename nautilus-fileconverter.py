@@ -1,4 +1,4 @@
-converterVersion = "001000006" # Change the number if you want to trigger an update.
+converterVersion = "001000007" # Change the number if you want to trigger an update.
 automaticUpdates = True # Replace the "True" with "False" if you don't want automatic updates.
 
 from gi.repository import Nautilus, GObject
