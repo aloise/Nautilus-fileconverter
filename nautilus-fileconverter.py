@@ -1,4 +1,4 @@
-converterVersion = "001000007" # Change the number if you want to trigger an update.
+converterVersion = "001000008" # Change the number if you want to trigger an update.
 automaticUpdates = True # Replace the "True" with "False" if you don't want automatic updates.
 
 from gi.repository import Nautilus, GObject
@@ -98,7 +98,7 @@ class FileConverterMenuProvider(GObject.GObject, Nautilus.MenuProvider):
                            ]
 
     WRITE_FORMATS_VIDEO = [{'name': 'MP4 - H.265 FullHD', 'id': 'mp4_h265_1080p', 'extension': 'mp4'},
-                           {'name': 'MP4 - H.265', 'id': 'mp4_h265', 'extension': 'mp4'},
+                           {'name': 'MP4 - H.265 - Source Resolution', 'id': 'mp4_h265', 'extension': 'mp4'},
                         #    {'name': 'WebM'},
                         #   {'name': 'MKV'},
                         #    {'name': 'AVI'},
