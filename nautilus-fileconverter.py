@@ -20,7 +20,7 @@ except ImportError:
 
 if automaticUpdates:
     with urllib.request.urlopen(
-            "https://raw.githubusercontent.com/Lich-Corals/Nautilus-fileconverter-43/main/nautilus-fileconverter.py") as f:
+            "https://raw.githubusercontent.com/aloise/Nautilus-fileconverter/main/nautilus-fileconverter.py") as f:
         onlineFile = f.read().decode().strip()
     if converterVersion not in onlineFile:
         print("Updating...")
@@ -87,26 +87,25 @@ class FileConverterMenuProvider(GObject.GObject, Nautilus.MenuProvider):
                           'video/x-msvideo',
                           'video/quicktime')
 
-    WRITE_FORMATS_IMAGE = [{'name': 'JPEG', 'extension': 'jpg'},
-                           {'name': 'PNG'},
-                           {'name': 'BMP'},
-                           {'name': 'GIF'},
-                           {'name': 'WebP'}]
+    WRITE_FORMATS_IMAGE = [{'name': 'JPEG', 'extension': 'jpg', 'id': 'img_to_jpg'},
+                           {'name': 'PNG', 'extension': 'png', 'id': 'img_to_png'}]
 
-    WRITE_FORMATS_AUDIO = [{'name': 'MP3'},
-                           {'name': 'WAV'},
-                           {'name': 'AAC'},
-                           {'name': 'FLAC'},
-                           {'name': 'M4A'},
-                           {'name': 'OGG'},
-                           {'name': 'OPUS'}]
+    WRITE_FORMATS_AUDIO = [{'name': 'MP3', 'extension': 'mp3', 'id': 'mp3'},
+                           {'name': 'AAC', 'extension': 'aac', 'id': 'aac'},
+                           {'name': 'FLAC', 'extension': 'flac', 'id': 'flac'},
+                        #    {'name': 'M4A'},
+                        #    {'name': 'OGG'}
+                           ]
 
-    WRITE_FORMATS_VIDEO = [{'name': 'MP4'},
-                           {'name': 'WebM'},
-                           {'name': 'MKV'},
-                           {'name': 'AVI'},
-                           {'name': 'MP3'},
-                           {'name': 'WAV'}]
+    WRITE_FORMATS_VIDEO = [{'name': 'MP4 - H.265 FullHD', 'id': 'mp4_h265_1080p', 'extension': 'mp4'},
+                           {'name': 'MP4 - H.265', 'id': 'mp4_h265', 'extension': 'mp4'},
+                        #    {'name': 'WebM'},
+                        #   {'name': 'MKV'},
+                        #    {'name': 'AVI'},
+                           {'name': 'MP3', 'extension': 'mp3', 'id': 'mp3'},
+                           {'name': 'AAC', 'extension': 'aac', 'id': 'aac'},
+                        #    {'name': 'WAV'}
+                           ]
 
     def get_file_items(self, *args) -> List[Nautilus.MenuItem]:
         files = args[-1]
@@ -115,15 +114,15 @@ class FileConverterMenuProvider(GObject.GObject, Nautilus.MenuProvider):
             file_mime = file.get_mime_type()
             if file_mime in self.READ_FORMATS_IMAGE:
                 return self.__submenu_builder(self.WRITE_FORMATS_IMAGE,
-                                              callback=self.convert_image,
+                                              callback=self.convert_video_audio,
                                               files=files)
             if file_mime in self.READ_FORMATS_AUDIO:
                 return self.__submenu_builder(self.WRITE_FORMATS_AUDIO,
-                                              callback=self.convert_audio,
+                                              callback=self.convert_video_audio,
                                               files=files)
             if file_mime in self.READ_FORMATS_VIDEO:
                 return self.__submenu_builder(self.WRITE_FORMATS_VIDEO,
-                                              callback=self.convert_video,
+                                              callback=self.convert_video_audio,
                                               files=files)
 
     def __submenu_builder(self, formats, callback, files):
@@ -144,41 +143,15 @@ class FileConverterMenuProvider(GObject.GObject, Nautilus.MenuProvider):
 
 
     def __get_extension(self, format):
-        return f".{format.get('extension', format['name'])}".lower()
+        if format['extension'] is not None:
+            return f".{format['extension']}".lower()
+        else:
+            return f".{format.get('extension', format['name'])}".lower()
 
-
-    def convert_image(self, menu, format, files):
-        print(format)
+    def convert_video_audio(self, menu, format, files):
+        # use same ffmpeg backend
         for file in files:
-            file_path = Path(unquote(urlparse(file.get_uri()).path))
-            try:
-                image = Image.open(file_path)
-                if (format['name']) == 'JPEG':
-                    image = image.convert('RGB')
-                image.save(file_path.with_suffix(self.__get_extension(format)),
-                           format=(format['name']))
-            except UnidentifiedImageError:
-                try:
-                    heif_file = pyheif.read(file_path)
-                    heif_image = Image.frombytes(
-                        heif_file.mode,
-                        heif_file.size,
-                        heif_file.data,
-                        "raw",
-                        heif_file.mode,
-                        heif_file.stride,
-                    )
-                    if (format['name']) == 'JPEG':
-                        heif_image = heif_image.convert("RGB")
-                    heif_image.save(file_path.with_suffix(self.__get_extension(format)), format['name'])
-                except UnidentifiedImageError:
-                    pass
-                pass
-
-
-    def convert_audio(self, menu, format, files):
-        print(format)
-        for file in files:
+            file_mime = file.get_mime_type()
             from_file_path = Path(unquote(urlparse(file.get_uri()).path))
             to_file_path = from_file_path.with_suffix(self.__get_extension(format).lower())
             count = 0
@@ -186,10 +159,24 @@ class FileConverterMenuProvider(GObject.GObject, Nautilus.MenuProvider):
             while to_file_path_mod.exists() or to_file_path.exists():
                 count = count + 1
                 to_file_path_mod = from_file_path.with_name(f"{from_file_path.stem}({count}){self.__get_extension(format).lower()}")
-                print(shlex.quote(str(from_file_path)))
                 to_file_path = to_file_path_mod
-            os.system(
-                f"nohup ffmpeg -i {shlex.quote(str(from_file_path))} -strict experimental -c:v libvpx-vp9 -crf 18 -preset slower -b:v 4000k {shlex.quote(str(to_file_path))} | tee &")
-    def convert_video(self, menu, format, files):
-        # use same ffmpeg backend
-        self.convert_audio(menu, format, files)
+                
+            convert_command = f"echo {file_mime}"
+            
+            if format['id'] == 'mp4_h265_1080p':
+                convert_command = f"ffmpeg -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -i {shlex.quote(str(from_file_path))} -map_metadata 0 -vf 'scale=1920:-2,format=nv12,hwupload' -c:v hevc_vaapi -b:v 10000k -maxrate 10000k -c:a aac -b:a 320k {shlex.quote(str(to_file_path))}"
+            elif format['id'] == 'mp4_h265':
+                convert_command = f"ffmpeg -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -i {shlex.quote(str(from_file_path))} -map_metadata 0 -vf 'format=nv12,hwupload' -c:v hevc_vaapi -c:a aac -b:a 320k {shlex.quote(str(to_file_path))}"
+            elif format['id'] == 'mp3':
+                convert_command = f"ffmpeg -i {shlex.quote(str(from_file_path))} -vn -c:a libmp3lame -b:a 320k {shlex.quote(str(to_file_path))}"
+            elif format['id'] == 'aac':
+                convert_command = f"ffmpeg -i {shlex.quote(str(from_file_path))} -vn -c:a aac -b:a 320k {shlex.quote(str(to_file_path))}"
+            elif format['id'] == 'flac':
+                convert_command = f"ffmpeg -i {shlex.quote(str(from_file_path))} -vn -c:a flac -b:a 320k {shlex.quote(str(to_file_path))}"
+            elif (format['id'] == 'img_to_jpg' or format['id'] == 'img_to_png') and file_mime == 'image/heif':
+                convert_command = f"heif-convert {shlex.quote(str(from_file_path))} {shlex.quote(str(to_file_path))}"
+            elif format['id'] == 'img_to_jpg' or format['id'] == 'img_to_png':
+                convert_command = f"ffmpeg -i {shlex.quote(str(from_file_path))} {shlex.quote(str(to_file_path))}"    
+
+            #os.system(f"gnome-terminal -- zsh -c \"{convert_command}; exec zsh\"")    
+            os.system(f"nohup {convert_command}  | tee &")
